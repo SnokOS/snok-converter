@@ -5,7 +5,6 @@ import json
 import os
 import sys
 
-# --- فحص GTK قبل أي شيء آخر ---
 try:
     import gi
     gi.require_version('Gtk', '3.0')
@@ -78,12 +77,12 @@ class SnokSettings(Gtk.Window):
                     pass
 
         self.config = load_config()
-        self.format_widgets = {}   # {(category, fmt): dict-of-widgets}
+        self.format_widgets = {}
 
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         self.add(main_box)
 
-        # --- رأس الصفحة ---
+        # --- Header ---
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         try:
             pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(ICON_FALLBACK, 56, 56, True)
@@ -108,7 +107,7 @@ class SnokSettings(Gtk.Window):
 
         main_box.pack_start(Gtk.Separator(), False, False, 0)
 
-        # --- مفتاح التشغيل/الإيقاف ---
+        # --- Enable toggle ---
         toggle_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         toggle_label = Gtk.Label()
         toggle_label.set_markup("<b>Enable Snok-Converter in Thunar</b>")
@@ -121,7 +120,7 @@ class SnokSettings(Gtk.Window):
         toggle_box.pack_end(self.enable_switch, False, False, 0)
         main_box.pack_start(toggle_box, False, False, 0)
 
-        # --- دفتر التبويبات ---
+        # --- Notebook ---
         self.notebook = Gtk.Notebook()
         self.notebook.set_scrollable(True)
         main_box.pack_start(self.notebook, True, True, 0)
@@ -136,7 +135,7 @@ class SnokSettings(Gtk.Window):
             tab.pack_start(Gtk.Label(label=label), False, False, 0)
             self.notebook.append_page(page, tab)
 
-        # --- شريط الأزرار السفلي ---
+        # --- Bottom buttons ---
         btn_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         btn_bar.set_margin_top(4)
 
@@ -149,7 +148,10 @@ class SnokSettings(Gtk.Window):
         btn_bar.pack_start(reset_btn, False, False, 0)
 
         save_btn = Gtk.Button(label="💾 Save")
-        save_btn.get_style_context().add_class("suggested-action")
+        try:
+            save_btn.get_style_context().add_class("suggested-action")
+        except Exception:
+            pass
         save_btn.connect("clicked", self.on_save)
         btn_bar.pack_end(save_btn, False, False, 0)
 
@@ -160,7 +162,7 @@ class SnokSettings(Gtk.Window):
         main_box.pack_start(Gtk.Separator(), False, False, 0)
         main_box.pack_start(btn_bar, False, False, 0)
 
-    # -------------------- بناء صفحة الفئة --------------------
+    # ---------- Build category page ----------
     def build_category_page(self, category):
         scroller = Gtk.ScrolledWindow()
         scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -174,7 +176,7 @@ class SnokSettings(Gtk.Window):
             outer.pack_start(Gtk.Label(label="(no formats configured)"), False, False, 0)
             return scroller
 
-        # رأس الأعمدة
+        # Column headers
         head = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         head.set_margin_bottom(4)
         l1 = Gtk.Label(); l1.set_markup("<b>Format</b>"); l1.set_xalign(0); l1.set_size_request(90, -1)
@@ -193,28 +195,23 @@ class SnokSettings(Gtk.Window):
             row.set_margin_top(2)
             row.set_margin_bottom(2)
 
-            # اسم الصيغة
             name = Gtk.Label(label=fmt.upper())
             name.set_xalign(0)
             name.set_size_request(90, -1)
             row.pack_start(name, False, False, 0)
 
-            # تفعيل الظهور في القائمة
             show_check = Gtk.CheckButton()
             show_check.set_active(opts.get("enabled", True))
             show_check.set_tooltip_text("Show this format in the right-click menu")
             row.pack_start(show_check, False, False, 0)
 
-            # حذف الأصل
             del_check = Gtk.CheckButton()
             del_check.set_active(opts.get("delete_original", False))
             row.pack_start(del_check, False, False, 0)
 
-            # خيارات إضافية
             extras = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
             widgets = {"enabled": show_check, "delete_original": del_check, "extras": {}}
 
-            # جودة للصور
             if fmt in ("jpg", "jpeg", "webp", "avif", "heic", "jfif") or (
                     category == "image" and "quality" in opts):
                 lbl = Gtk.Label(label="Q:"); extras.pack_start(lbl, False, False, 0)
@@ -223,7 +220,6 @@ class SnokSettings(Gtk.Window):
                 extras.pack_start(spin, False, False, 0)
                 widgets["extras"]["quality"] = spin
 
-            # DPI للصور النقطية من SVG أو المستندات
             if "dpi" in opts:
                 lbl = Gtk.Label(label="DPI:"); extras.pack_start(lbl, False, False, 0)
                 spin = Gtk.SpinButton.new_with_range(72, 1200, 1)
@@ -231,7 +227,6 @@ class SnokSettings(Gtk.Window):
                 extras.pack_start(spin, False, False, 0)
                 widgets["extras"]["dpi"] = spin
 
-            # خلفية JPG
             if fmt in ("jpg", "jpeg") and "background" in opts:
                 lbl = Gtk.Label(label="BG:"); extras.pack_start(lbl, False, False, 0)
                 entry = Gtk.Entry()
@@ -240,7 +235,6 @@ class SnokSettings(Gtk.Window):
                 extras.pack_start(entry, False, False, 0)
                 widgets["extras"]["background"] = entry
 
-            # bitrate للصوت
             if "bitrate" in opts:
                 lbl = Gtk.Label(label="kbps:"); extras.pack_start(lbl, False, False, 0)
                 spin = Gtk.SpinButton.new_with_range(32, 512, 32)
@@ -252,7 +246,6 @@ class SnokSettings(Gtk.Window):
                 extras.pack_start(spin, False, False, 0)
                 widgets["extras"]["bitrate"] = spin
 
-            # CRF للفيديو
             if "crf" in opts:
                 lbl = Gtk.Label(label="CRF:"); extras.pack_start(lbl, False, False, 0)
                 spin = Gtk.SpinButton.new_with_range(0, 51, 1)
@@ -260,14 +253,12 @@ class SnokSettings(Gtk.Window):
                 extras.pack_start(spin, False, False, 0)
                 widgets["extras"]["crf"] = spin
 
-            # optimize لـ SVG
             if "optimize" in opts:
                 chk = Gtk.CheckButton(label="svgo")
                 chk.set_active(bool(opts.get("optimize", False)))
                 extras.pack_start(chk, False, False, 0)
                 widgets["extras"]["optimize"] = chk
 
-            # svg_trace لتحويل صورة إلى SVG
             if "svg_trace" in opts:
                 chk = Gtk.CheckButton(label="Trace")
                 chk.set_active(bool(opts.get("svg_trace", False)))
@@ -281,7 +272,7 @@ class SnokSettings(Gtk.Window):
 
         return scroller
 
-    # -------------------- معالجات --------------------
+    # ---------- Handlers ----------
     def on_enable_toggled(self, _switch, state):
         self.config["enabled"] = bool(state)
         return False
@@ -340,7 +331,7 @@ class SnokSettings(Gtk.Window):
         dlg.set_version("2.0")
         dlg.set_comments("Universal file converter for Thunar\n"
                          "Images · SVG · Audio · Video · Documents")
-        dlg.set_website("https://github.com/SnokPC")
+        dlg.set_website("https://github.com/SnokOS/snok-converter")
         try:
             pixbuf = GdkPixbuf.Pixbuf.new_from_file(ICON_FALLBACK)
             dlg.set_logo(pixbuf)
@@ -362,13 +353,11 @@ class SnokSettings(Gtk.Window):
 
 
 def main():
-    # تأكد من وجود config المستخدم
     if not os.path.exists(CONFIG_PATH) and os.path.exists(SYSTEM_CONFIG):
         try:
-            load_config()  # ينسخ تلقائيًا
+            load_config()
         except Exception:
             pass
-
     win = SnokSettings()
     win.show_all()
     Gtk.main()

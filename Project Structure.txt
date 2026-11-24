@@ -1,0 +1,11 @@
+snok-converter/
+├── README.md
+├── LICENSE
+├── install.sh
+├── config.json
+├── snok-convert.py
+├── snok-settings.py
+└── screenshots/
+    ├── settings.png
+    ├── progress.png
+    └── context-menu.png

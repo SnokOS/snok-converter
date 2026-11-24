@@ -27,7 +27,7 @@ ICON_NAME = "snok-converter"
 ICON_FALLBACK = "/usr/share/icons/hicolor/256x256/apps/snok-converter.png"
 
 
-# -------------------- الإعدادات --------------------
+# ---------- Config ----------
 def load_config():
     if os.path.exists(CONFIG_PATH):
         with open(CONFIG_PATH, encoding='utf-8') as f:
@@ -42,7 +42,7 @@ def load_config():
     raise RuntimeError("No config file found")
 
 
-# -------------------- اكتشاف الفئة --------------------
+# ---------- Category detection ----------
 EXT_MAP = {
     # image
     "png": "image", "jpg": "image", "jpeg": "image", "webp": "image",
@@ -77,7 +77,6 @@ def get_category(filepath):
     ext = os.path.splitext(filepath)[1].lower().lstrip(".")
     if ext in EXT_MAP:
         return EXT_MAP[ext]
-    # mimetypes كاحتياط
     mime, _ = mimetypes.guess_type(filepath)
     if mime:
         if mime.startswith("image/"):
@@ -95,12 +94,11 @@ def get_category(filepath):
 
 
 def unique_output(input_file, target_ext):
-    """يُرجع مسارًا للإخراج لا يتعارض مع الملف الأصلي أو ملف موجود."""
+    """Return an output path that doesn't clash with the source or existing files."""
     base = os.path.splitext(input_file)[0]
     out = f"{base}.{target_ext}"
     if os.path.abspath(out) == os.path.abspath(input_file):
         out = f"{base}_converted.{target_ext}"
-    # إضافة رقم إن وُجد الملف
     if os.path.exists(out):
         i = 2
         while os.path.exists(f"{base}_converted_{i}.{target_ext}"):
@@ -109,10 +107,10 @@ def unique_output(input_file, target_ext):
     return out
 
 
-# -------------------- دوال التحويل --------------------
+# ---------- Conversion functions ----------
 def convert_image(input_file, target_fmt, opts, progress):
-    """صورة نقطية → صيغة نقطية أو SVG أو PDF أو مستند مكتبي."""
-    # صورة → SVG
+    """Raster image → raster / SVG / PDF / office document."""
+    # Image → SVG
     if target_fmt == "svg":
         if opts.get("svg_trace", False) and shutil.which("potrace"):
             out = unique_output(input_file, "svg")
@@ -128,12 +126,12 @@ def convert_image(input_file, target_fmt, opts, progress):
                     os.remove(tmp)
             progress(1.0, "Done")
             return out
-        # embed
+        # Embed
         import base64
         try:
             from PIL import Image
         except ImportError:
-            raise RuntimeError("Pillow غير مثبت (python3-pil)")
+            raise RuntimeError("Pillow is not installed (python3-pil)")
         ext = os.path.splitext(input_file)[1].lower().lstrip(".")
         mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
                 "webp": "image/webp", "gif": "image/gif", "bmp": "image/bmp"}.get(
@@ -151,7 +149,7 @@ def convert_image(input_file, target_fmt, opts, progress):
         progress(1.0, "Done")
         return out
 
-    # صورة → مستند مكتبي
+    # Image → Office document
     if target_fmt in ("docx", "odt", "pptx", "xlsx"):
         out = unique_output(input_file, target_fmt)
         if target_fmt == "docx":
@@ -183,14 +181,14 @@ def convert_image(input_file, target_fmt, opts, progress):
         progress(1.0, "Done")
         return out
 
-    # صورة → PDF
+    # Image → PDF
     if target_fmt == "pdf":
         out = unique_output(input_file, "pdf")
         subprocess.run(["magick", input_file, out], check=True, capture_output=True)
         progress(1.0, "Done")
         return out
 
-    # صورة → صورة
+    # Image → Image
     out = unique_output(input_file, target_fmt)
     cmd = ["magick", input_file, "-quality", str(opts.get("quality", 95))]
     if target_fmt in ("jpg", "jpeg"):
@@ -203,7 +201,7 @@ def convert_image(input_file, target_fmt, opts, progress):
 
 
 def convert_svg(input_file, target_fmt, opts, progress):
-    """SVG → PNG/JPG/WebP/PDF أو تحسين SVG."""
+    """SVG → PNG / JPG / WebP / PDF, or SVG optimization."""
     if target_fmt == "svg":
         out = unique_output(input_file, "svg")
         if opts.get("optimize", False) and shutil.which("svgo"):
@@ -239,17 +237,16 @@ def convert_svg(input_file, target_fmt, opts, progress):
         subprocess.run(["rsvg-convert", "-f", "pdf", "-o", out, input_file],
                        check=True, capture_output=True)
     else:
-        raise ValueError(f"SVG → {target_fmt} غير مدعوم")
+        raise ValueError(f"SVG → {target_fmt} is not supported")
 
     progress(1.0, "Done")
     return out
 
 
 def convert_media(input_file, target_fmt, opts, progress, is_video):
-    """تحويل الفيديو/الصوت عبر ffmpeg مع تقدم حقيقي."""
+    """Video / audio conversion with real-time progress via ffmpeg -progress."""
     out = unique_output(input_file, target_fmt)
 
-    # مدة الملف
     try:
         probe = subprocess.run(
             ["ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -259,7 +256,6 @@ def convert_media(input_file, target_fmt, opts, progress, is_video):
     except Exception:
         total = 0.0
 
-    # بناء الأمر
     if is_video:
         if target_fmt == "gif":
             fps = str(opts.get("fps", 15))
@@ -294,15 +290,14 @@ def convert_media(input_file, target_fmt, opts, progress, is_video):
         elif target_fmt == "opus":
             cmd = ["ffmpeg", "-y", "-i", input_file, "-vn",
                    "-c:a", "libopus", "-b:a", bitrate, out]
-        elif target_fmt == "aac" or target_fmt == "m4a":
+        elif target_fmt in ("aac", "m4a"):
             cmd = ["ffmpeg", "-y", "-i", input_file, "-vn",
                    "-c:a", "aac", "-b:a", bitrate, out]
         else:
-            # صيغ الحاويات (mp4, mkv, ...) → aac
             cmd = ["ffmpeg", "-y", "-i", input_file, "-vn",
                    "-c:a", "aac", "-b:a", bitrate, out]
 
-    # إضافة -progress pipe:1
+    # Add progress reporting
     cmd = cmd[:1] + ["-progress", "pipe:1", "-nostats", "-hide_banner"] + cmd[1:]
 
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
@@ -331,14 +326,13 @@ def convert_media(input_file, target_fmt, opts, progress, is_video):
 
 
 def document_to_image(input_file, target_fmt, opts, progress):
-    """مستند (PDF/Office) → صورة."""
+    """Document (PDF/Office) → image."""
     dpi = str(int(opts.get("dpi", 150)))
     ext = os.path.splitext(input_file)[1].lower()
     tmpdir = None
 
     try:
         if ext != ".pdf":
-            # Office → PDF أولاً
             tmpdir = tempfile.mkdtemp(prefix="snok-")
             subprocess.run(["libreoffice", "--headless", "--convert-to", "pdf",
                             "--outdir", tmpdir, input_file],
@@ -348,14 +342,13 @@ def document_to_image(input_file, target_fmt, opts, progress):
                 os.path.splitext(os.path.basename(input_file))[0] + ".pdf"
             )
             if not os.path.exists(pdf_file):
-                raise RuntimeError("libreoffice لم يُنتج PDF")
+                raise RuntimeError("libreoffice did not produce a PDF")
         else:
             pdf_file = input_file
 
         base = os.path.splitext(input_file)[0]
         prefix = f"{base}_page"
 
-        # pdftoppm يدعم jpeg, png, tiff
         if target_fmt in ("jpg", "jpeg"):
             fmt = "jpeg"
         elif target_fmt in ("tif", "tiff"):
@@ -366,19 +359,17 @@ def document_to_image(input_file, target_fmt, opts, progress):
         subprocess.run(["pdftoppm", f"-{fmt}", "-r", dpi, pdf_file, prefix],
                        check=True, capture_output=True, timeout=300)
 
-        # إعادة تسمية الصفحة الأولى إلى الاسم المطلوب
         candidates = sorted([
             f for f in os.listdir(os.path.dirname(base) or ".")
             if f.startswith(os.path.basename(prefix)) and f.endswith(f".{fmt if fmt != 'jpeg' else 'jpg'}")
         ])
         if not candidates:
-            raise RuntimeError("pdftoppm لم يُنتج ملفات")
+            raise RuntimeError("pdftoppm did not produce any files")
 
         first = os.path.join(os.path.dirname(base) or ".", candidates[0])
         out = unique_output(input_file, target_fmt)
         shutil.move(first, out)
 
-        # تحويل باقي الصفحات للصيغة المطلوبة إن لزم
         for c in candidates[1:]:
             src = os.path.join(os.path.dirname(base) or ".", c)
             out_p = os.path.splitext(src)[0] + f".{target_fmt}"
@@ -397,10 +388,10 @@ def document_to_image(input_file, target_fmt, opts, progress):
 
 
 def convert_document(input_file, target_fmt, opts, progress):
-    """مستند → مستند (PDF/DOCX/ODT/PPTX/XLSX/TXT/MD/HTML)."""
+    """Document → document (PDF/DOCX/ODT/PPTX/XLSX/TXT/MD/HTML)."""
     ext_in = os.path.splitext(input_file)[1].lower().lstrip(".")
 
-    # الحالة 1: PDF → نص/HTML/MD
+    # Case 1: PDF → text/HTML/MD
     if ext_in == "pdf":
         out = unique_output(input_file, target_fmt)
         if target_fmt in ("txt", "md", "html"):
@@ -408,7 +399,6 @@ def convert_document(input_file, target_fmt, opts, progress):
                            check=True, capture_output=True)
             progress(1.0, "Done")
             return out
-        # PDF → Office: عبر LibreOffice لا يعمل مباشرة؛ نستخدم pdf2docx إن وُجد
         if target_fmt == "docx":
             try:
                 from pdf2docx import Converter
@@ -418,10 +408,10 @@ def convert_document(input_file, target_fmt, opts, progress):
                 progress(1.0, "Done")
                 return out
             except ImportError:
-                raise RuntimeError("pdf2docx مطلوب (pip install pdf2docx)")
-        raise ValueError(f"PDF → {target_fmt} غير مدعوم حاليًا")
+                raise RuntimeError("pdf2docx is required (pip install pdf2docx)")
+        raise ValueError(f"PDF → {target_fmt} is not supported")
 
-    # الحالة 2: Office → Office/PDF عبر LibreOffice
+    # Case 2: Office → Office/PDF via LibreOffice
     if ext_in in ("docx", "doc", "odt", "odp", "ods",
                   "pptx", "ppt", "xlsx", "xls"):
         tmpdir = tempfile.mkdtemp(prefix="snok-")
@@ -432,7 +422,7 @@ def convert_document(input_file, target_fmt, opts, progress):
                          "xlsx": "xlsx", "xls": "xls",
                          "pdf": "pdf"}.get(target_fmt)
             if not target_lo:
-                raise ValueError(f"Office → {target_fmt} غير مدعوم")
+                raise ValueError(f"Office → {target_fmt} is not supported")
             subprocess.run(
                 ["libreoffice", "--headless",
                  "--convert-to", target_lo, "--outdir", tmpdir, input_file],
@@ -442,7 +432,7 @@ def convert_document(input_file, target_fmt, opts, progress):
                 os.path.splitext(os.path.basename(input_file))[0] + f".{target_lo}"
             )
             if not os.path.exists(produced):
-                raise RuntimeError("libreoffice لم يُنتج ملفًا")
+                raise RuntimeError("libreoffice did not produce a file")
             out = unique_output(input_file, target_fmt)
             shutil.move(produced, out)
             progress(1.0, "Done")
@@ -450,7 +440,7 @@ def convert_document(input_file, target_fmt, opts, progress):
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
-    # الحالة 3: TXT/MD/HTML → PDF عبر pandoc
+    # Case 3: TXT/MD/HTML → PDF via pandoc
     if ext_in in ("txt", "md", "html", "htm"):
         if target_fmt == "pdf":
             out = unique_output(input_file, "pdf")
@@ -460,13 +450,13 @@ def convert_document(input_file, target_fmt, opts, progress):
                     check=True, capture_output=True, timeout=120)
                 progress(1.0, "Done")
                 return out
-            raise RuntimeError("pandoc مطلوب لهذا التحويل")
-        raise ValueError(f"{ext_in} → {target_fmt} غير مدعوم")
+            raise RuntimeError("pandoc is required for this conversion")
+        raise ValueError(f"{ext_in} → {target_fmt} is not supported")
 
-    raise ValueError(f"مستند غير معروف: {ext_in}")
+    raise ValueError(f"Unknown document type: {ext_in}")
 
 
-# -------------------- نافذة اختيار الصيغة --------------------
+# ---------- Format picker dialog ----------
 def build_format_dialog(parent, category, config):
     formats = config.get("formats", {}).get(category, {})
     enabled = [(f, o) for f, o in formats.items() if o.get("enabled", True)]
@@ -514,7 +504,6 @@ def build_format_dialog(parent, category, config):
     box.pack_start(scroller, True, True, 0)
 
     del_chk = Gtk.CheckButton(label="Delete original after conversion")
-    first_fmt = enabled[0][0]
     del_chk.set_active(enabled[0][1].get("delete_original", False))
     box.pack_start(del_chk, False, False, 0)
 
@@ -532,7 +521,7 @@ def build_format_dialog(parent, category, config):
     return dlg, listbox, rows, del_chk
 
 
-# -------------------- نافذة التقدم --------------------
+# ---------- Progress window ----------
 def make_progress_window(title):
     win = Gtk.Window(title=title)
     win.set_default_size(420, 130)
@@ -565,7 +554,7 @@ def make_progress_window(title):
     return win, bar, file_lbl, info_lbl
 
 
-# -------------------- المحرك الرئيسي --------------------
+# ---------- Main engine ----------
 def run_conversion(files, category, target_fmt, delete_original, parent):
     config = load_config()
     opts = config.get("formats", {}).get(category, {}).get(target_fmt, {})
@@ -608,14 +597,14 @@ def run_conversion(files, category, target_fmt, delete_original, parent):
                     else:
                         out = convert_document(f, target_fmt, opts, do_progress)
                 else:
-                    raise RuntimeError(f"فئة غير معروفة: {category}")
+                    raise RuntimeError(f"Unknown category: {category}")
                 results.append(out)
                 if delete_original:
                     try:
                         if os.path.abspath(f) != os.path.abspath(out):
                             os.remove(f)
                     except Exception as e:
-                        errors.append(f"حذف فشل {f}: {e}")
+                        errors.append(f"Delete failed for {f}: {e}")
             except Exception as e:
                 errors.append(f"{os.path.basename(f)}: {e}")
         GLib.idle_add(finish, results, errors)
@@ -628,7 +617,7 @@ def run_conversion(files, category, target_fmt, delete_original, parent):
                 transient_for=parent, flags=0,
                 message_type=Gtk.MessageType.ERROR,
                 buttons=Gtk.ButtonsType.OK,
-                text=f"اكتمل مع {len(errors)} خطأ، نجح {len(results)} ملف.")
+                text=f"Completed with {len(errors)} error(s); {len(results)} succeeded.")
             d.format_secondary_text("\n".join(errors[:8]))
             d.run(); d.destroy()
         else:
@@ -636,7 +625,7 @@ def run_conversion(files, category, target_fmt, delete_original, parent):
                 transient_for=parent, flags=0,
                 message_type=Gtk.MessageType.INFO,
                 buttons=Gtk.ButtonsType.OK,
-                text=f"تم تحويل {len(results)} ملف بنجاح.")
+                text=f"Successfully converted {len(results)} file(s).")
             d.format_secondary_text("\n".join(os.path.basename(r) for r in results[:8]))
             d.run(); d.destroy()
         Gtk.main_quit()
@@ -646,29 +635,29 @@ def run_conversion(files, category, target_fmt, delete_original, parent):
     Gtk.main()
 
 
-# -------------------- Main --------------------
+# ---------- Entry point ----------
 def main():
     files = [f for f in sys.argv[1:] if os.path.isfile(f)]
     if not files:
-        _err("لا توجد ملفات محددة.")
+        _err("No files were selected.")
         sys.exit(1)
 
     try:
         config = load_config()
     except Exception as e:
-        _err(f"فشل تحميل الإعدادات: {e}")
+        _err(f"Failed to load config: {e}")
         sys.exit(1)
 
     if not config.get("enabled", True):
-        _err("Snok-Converter معطل. فعّله من الإعدادات.")
+        _err("Snok-Converter is disabled. Please enable it from Settings.")
         sys.exit(0)
 
     categories = {get_category(f) for f in files}
     if None in categories:
-        _err("نوع ملف غير مدعوم.")
+        _err("Unsupported file type.")
         sys.exit(1)
     if len(categories) > 1:
-        _err("الرجاء تحديد ملفات من نفس النوع.")
+        _err("Please select files of the same type.")
         sys.exit(1)
     category = categories.pop()
 
@@ -681,7 +670,7 @@ def main():
 
     result = build_format_dialog(parent, category, config)
     if not result:
-        _err("لا توجد صيغ مفعلة لهذه الفئة.")
+        _err("No formats are enabled for this category.")
         sys.exit(1)
 
     dlg, listbox, rows, del_chk = result

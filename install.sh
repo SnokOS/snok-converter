@@ -1,17 +1,25 @@
 #!/usr/bin/env bash
 # ============================================================
 #  Snok-Converter — System-Wide Installer
-#  يُثبّت في /usr/share/snok-converter/ ويجعل الأدوات متاحة لكل المستخدمين
+#  Installs to /usr/share/snok-converter/ for all users
+#  Usage: sudo bash install.sh
+#  Or:    curl -fsSL https://raw.githubusercontent.com/SnokOS/snok-converter/main/install.sh | sudo bash
 # ============================================================
 set -euo pipefail
 
+# ---------- Root check ----------
 if [[ $EUID -ne 0 ]]; then
-    echo "❌ يجب تشغيله كمدير نظام."
-    echo "   الاستخدام: sudo bash $0"
+    echo "❌ This script must be run as root."
+    echo "   Usage: sudo bash $0"
     exit 1
 fi
 
-# ---------- اكتشاف التوزيعة ----------
+# ---------- Paths ----------
+SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
+DEST="/usr/share/snok-converter"
+REPO_RAW="https://raw.githubusercontent.com/SnokOS/snok-converter/main"
+
+# ---------- Distribution detection ----------
 DISTRO=""; VERSION=""
 if [[ -f /etc/os-release ]]; then
     . /etc/os-release
@@ -31,19 +39,55 @@ case "$DISTRO" in
     opensuse*|suse*|sles)
         FAMILY="suse" ;;
     *)
-        echo "⚠️  توزيعة غير معروفة ($DISTRO) — سأحاول apt"
+        echo "⚠️  Unknown distribution ($DISTRO) — falling back to apt"
         FAMILY="debian"
         ;;
 esac
 
 echo "==============================================="
 echo " Snok-Converter Installer"
-echo " التوزيعة: $DISTRO $VERSION   (العائلة: $FAMILY)"
+echo " Distribution: $DISTRO $VERSION  (family: $FAMILY)"
 echo "==============================================="
 echo ""
 
-# ---------- تثبيت الاعتماديات ----------
-echo "📦 تثبيت الاعتماديات…"
+# ---------- Download missing files from GitHub ----------
+download_missing() {
+    local need_download=0
+    for f in config.json snok-convert.py snok-settings.py; do
+        if [[ ! -f "$SRC_DIR/$f" ]]; then
+            need_download=1
+            break
+        fi
+    done
+    if [[ $need_download -eq 1 ]]; then
+        echo "⬇️  Some files are missing — downloading from GitHub…"
+        if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+            echo "❌ curl or wget is required for downloading"
+            exit 1
+        fi
+        for f in config.json snok-convert.py snok-settings.py; do
+            if [[ ! -f "$SRC_DIR/$f" ]]; then
+                echo "  ⏳ Downloading $f…"
+                if command -v curl >/dev/null 2>&1; then
+                    curl -fsSL "$REPO_RAW/$f" -o "$SRC_DIR/$f" || {
+                        echo "❌ Failed to download $f"; exit 1;
+                    }
+                else
+                    wget -q "$REPO_RAW/$f" -O "$SRC_DIR/$f" || {
+                        echo "❌ Failed to download $f"; exit 1;
+                    }
+                fi
+            fi
+        done
+        echo "✅ All required files downloaded."
+        echo ""
+    fi
+}
+
+download_missing
+
+# ---------- Install dependencies ----------
+echo "📦 Installing dependencies…"
 
 install_debian() {
     apt-get update -qq
@@ -51,14 +95,13 @@ install_debian() {
         python3 python3-gi python3-pil gir1.2-gtk-3.0 \
         imagemagick ffmpeg librsvg2-bin potrace poppler-utils \
         pandoc libreoffice-writer libreoffice-calc libreoffice-impress \
-        libheif-examples libavif-bin webp exiftool \
+        libheif-examples libavif-bin webp libimage-exiftool-perl \
         python3-docx python3-odf python3-pptx python3-openpyxl \
         zenity wget curl || true
-    # svgo عبر npm
     if ! command -v svgo >/dev/null 2>&1; then
-        echo "  ⏳ تثبيت svgo عبر npm…"
+        echo "  ⏳ Installing svgo via npm…"
         apt-get install -y nodejs npm >/dev/null 2>&1 || true
-        npm install -g svgo >/dev/null 2>&1 || echo "  ⚠️  svgo غير متاح"
+        npm install -g svgo >/dev/null 2>&1 || echo "  ⚠️  svgo not available"
     fi
 }
 
@@ -71,7 +114,7 @@ install_arch() {
         zenity wget curl nodejs npm || true
     command -v svgo >/dev/null 2>&1 || \
         npm install -g svgo >/dev/null 2>&1 || \
-        echo "  ⚠️  svgo غير متاح"
+        echo "  ⚠️  svgo not available"
 }
 
 install_redhat() {
@@ -105,34 +148,31 @@ case "$FAMILY" in
     suse)   install_suse ;;
 esac
 
-echo "✅ الاعتماديات جاهزة."
+echo "✅ Dependencies ready."
 echo ""
 
-# ---------- نسخ الملفات ----------
-SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
-DEST="/usr/share/snok-converter"
+# ---------- Copy application files ----------
 mkdir -p "$DEST"
-
-echo "📁 نسخ الملفات إلى $DEST…"
+echo "📁 Copying files to $DEST…"
 for f in snok-convert.py snok-settings.py config.json; do
     if [[ -f "$SRC_DIR/$f" ]]; then
         install -m 0644 "$SRC_DIR/$f" "$DEST/$f"
         echo "  ✓ $f"
     else
-        echo "  ⚠️  $f مفقود — تخطي"
+        echo "  ⚠️  $f missing — skipped"
     fi
 done
 chmod 0755 "$DEST/snok-convert.py" "$DEST/snok-settings.py"
 
-# ---------- Wrappers في /usr/bin ----------
-echo "🔗 إنشاء Launchers في /usr/bin…"
+# ---------- Create wrappers in /usr/bin ----------
+echo "🔗 Creating launchers in /usr/bin…"
 
 cat > /usr/bin/snok-settings <<'EOF'
 #!/bin/bash
 LOG="/tmp/snok-settings.log"
 : > "$LOG"
 if ! /usr/bin/python3 -c "import gi; gi.require_version('Gtk','3.0')" 2>>"$LOG"; then
-    MSG="GTK/PyGObject غير مثبت. ثبّت python3-gi و gir1.2-gtk-3.0"
+    MSG="GTK/PyGObject is not installed. Please install python3-gi and gir1.2-gtk-3.0"
     command -v zenity >/dev/null && zenity --error --text="$MSG" \
         --title="Snok-Converter" 2>/dev/null
     echo "ERROR: GTK missing" >> "$LOG"
@@ -148,7 +188,7 @@ cat > /usr/bin/snok-convert <<'EOF'
 LOG="/tmp/snok-convert.log"
 : > "$LOG"
 if ! /usr/bin/python3 -c "import gi; gi.require_version('Gtk','3.0')" 2>>"$LOG"; then
-    MSG="GTK/PyGObject غير مثبت. ثبّت python3-gi و gir1.2-gtk-3.0"
+    MSG="GTK/PyGObject is not installed. Please install python3-gi and gir1.2-gtk-3.0"
     command -v zenity >/dev/null && zenity --error --text="$MSG" \
         --title="Snok-Converter" 2>/dev/null
     exit 1
@@ -158,8 +198,8 @@ exec /usr/bin/python3 /usr/share/snok-converter/snok-convert.py "$@" \
 EOF
 chmod 0755 /usr/bin/snok-convert
 
-# ---------- الأيقونة ----------
-echo "🎨 تثبيت الأيقونة…"
+# ---------- Install icon ----------
+echo "🎨 Installing icon…"
 for SZ in 256 128 64 48 32; do
     mkdir -p "/usr/share/icons/hicolor/${SZ}x${SZ}/apps"
 done
@@ -171,14 +211,14 @@ if wget -q -O "/tmp/snok-icon.png" \
            "/usr/share/icons/hicolor/${SZ}x${SZ}/apps/snok-converter.png"
     done
     rm -f /tmp/snok-icon.png
-    echo "  ✓ الشعار مثبت"
+    echo "  ✓ Icon installed"
 else
-    echo "  ⚠️  فشل تحميل الشعار (تحقق من الاتصال)"
+    echo "  ⚠️  Failed to download icon (check your connection)"
 fi
 gtk-update-icon-cache -f /usr/share/icons/hicolor/ 2>/dev/null || true
 
-# ---------- .desktop ----------
-echo "📝 ملفات .desktop…"
+# ---------- Desktop entries ----------
+echo "📝 Creating .desktop files…"
 
 cat > /usr/share/applications/snok-converter-settings.desktop <<'EOF'
 [Desktop Entry]
@@ -196,7 +236,7 @@ Icon=snok-converter
 Terminal=false
 StartupNotify=true
 Categories=XFCE;Settings;X-XFCE-SettingsDialog;Utility;
-Keywords=convert;settings;snok;تحويل;إعدادات;
+Keywords=convert;settings;snok;
 EOF
 chmod 0644 /usr/share/applications/snok-converter-settings.desktop
 
@@ -221,23 +261,21 @@ chmod 0644 /usr/share/applications/snok-converter.desktop
 update-desktop-database /usr/share/applications 2>/dev/null || true
 update-mime-database /usr/share/mime 2>/dev/null || true
 
-# ---------- إعدادات المستخدم + إجراء Thunar ----------
+# ---------- User config + Thunar action ----------
 REAL_USER="${SUDO_USER:-}"
 if [[ -n "$REAL_USER" && "$REAL_USER" != "root" ]]; then
     REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
     if [[ -n "$REAL_HOME" && -d "$REAL_HOME" ]]; then
-        # config
         mkdir -p "$REAL_HOME/.config/snok-converter"
         if [[ ! -f "$REAL_HOME/.config/snok-converter/config.json" ]]; then
             cp "$DEST/config.json" \
                "$REAL_HOME/.config/snok-converter/config.json"
             chown -R "$REAL_USER:$REAL_USER" \
                   "$REAL_HOME/.config/snok-converter"
-            echo "  ✓ config.json نُسخ إلى $REAL_USER"
+            echo "  ✓ config.json copied to $REAL_USER"
         fi
 
-        # Thunar custom action
-        echo "🔗 إضافة إجراء Thunar لـ $REAL_USER…"
+        echo "🔗 Adding Thunar custom action for $REAL_USER…"
         THUNAR_DIR="$REAL_HOME/.config/Thunar"
         mkdir -p "$THUNAR_DIR"
         chown "$REAL_USER:$REAL_USER" "$THUNAR_DIR"
@@ -248,7 +286,6 @@ import xml.etree.ElementTree as ET
 
 user, thunar_dir = sys.argv[1], sys.argv[2]
 uca_path = os.path.join(thunar_dir, "uca.xml")
-
 ACTION_NAME = "Snok-Converter"
 
 if os.path.exists(uca_path) and os.path.getsize(uca_path) > 0:
@@ -262,7 +299,6 @@ else:
     root = ET.Element("actions")
     tree = ET.ElementTree(root)
 
-# تحقق من وجود الإجراء
 already = False
 for action in root.findall("action"):
     n = action.find("name")
@@ -271,7 +307,7 @@ for action in root.findall("action"):
         break
 
 if already:
-    print("  ℹ️  الإجراء موجود مسبقًا")
+    print("  ℹ️  Action already exists")
 else:
     act = ET.SubElement(root, "action")
     ET.SubElement(act, "icon").text = "snok-converter"
@@ -287,29 +323,28 @@ else:
     for k in ("audio-files", "image-files",
               "other-files", "text-files", "video-files"):
         ET.SubElement(conds, k).text = "true"
-
     tree.write(uca_path, encoding="utf-8", xml_declaration=True)
-    print("  ✓ إجراء Thunar مضاف")
+    print("  ✓ Thunar action added")
 
 os.system(f"chown {user}:{user} {uca_path} 2>/dev/null")
 PYEOF
     fi
 fi
 
-# ---------- ملخص ----------
+# ---------- Summary ----------
 echo ""
 echo "==============================================="
-echo " ✅ اكتمل التثبيت بنجاح"
+echo " ✅ Installation completed successfully"
 echo "==============================================="
 echo ""
-echo " 📂 المسار:        $DEST"
-echo " 🚀 الأوامر:       snok-settings  |  snok-convert"
-echo " ⚙️  الإعدادات:     Settings Manager → Snok-Converter Settings"
+echo " 📂 Location:       $DEST"
+echo " 🚀 Commands:       snok-settings  |  snok-convert"
+echo " ⚙️  Settings:       Settings Manager → Snok-Converter Settings"
 echo ""
-echo " 🔄 لتفعيل Thunar فورًا:"
+echo " 🔄 To activate Thunar immediately:"
 echo "    thunar -q && thunar &"
 echo ""
-echo " 📋 للسجلات:"
+echo " 📋 Logs:"
 echo "    /tmp/snok-settings.log"
 echo "    /tmp/snok-convert.log"
 echo ""
