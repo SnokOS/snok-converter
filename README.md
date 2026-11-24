@@ -1,65 +1,52 @@
-# Snok-Converter v2.0
-====================
-Snok Converter is a very simple tool that allows you to convert and compress files using the context menu in your file manager. It is designed specifically for the system SnokOS linux
-====================
+<div align="center">
 
-تم تصميم واجهة المستخدم لتكون خفيفة قدر الإمكان للحفاظ على سهولة استخدام التطبيق.
+# 🎬 Snok-Converter
 
-يدعم العديد من تنسيقات الملفات المختلفة:
+**A powerful, all-in-one file converter for the Thunar file manager**
 
-		تنسيقات الإخراج المدعومة			تنسيقات الإدخال المتوافقة
-صوتي	صيغ الملفات: flac، aac، ogg، mp3، wav	3gp، 3gpp، aac، aiff، ape، avi، bik، cda، flac، flv، gif، m4v، mkv، mp4، m4a، m4b، mp3، mpg، mpeg، mov، oga، ogg، ogv، opus، rm، ts، vob، wav، webm، wma، wmv
-فيديو		webm، mkv، mp4، ogv، avi، gif			3gp، 3gpp، avi، bik، flv، gif، m4v، mkv، mp4، mpg، mpeg، mov، ogv، rm، ts، vob، webm، wmv
-صورة	 svg ،png، jpg، ico، webp، avif			arw، avif، bmp، cr2، dds، dns، exr، heic، ico، jfif، jpg، jpeg، nef، png، psd، raf، svg، tif، tiff، tga، webp، pdf، doc*، docx*، odt*، odp*، ods*، ppt*، pptx*، xls*، xlsx*
-وثيقة	ملف PDF						doc*، docx*، odt*، odp*، ods*، ppt*، pptx*، xls*، xlsx*، arw، bmp، cr2، dds، dns، exr، heic، ico، jfif، jpg، jpeg، nef، png، psd، raf، svg، tif، tiff، tga، webp
+[![Version](https://img.shields.io/badge/version-2.0-blue.svg)](https://github.com/SnokOS/snok-converter)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/SnokOS/snok-converter)
+[![Platform](https://img.shields.io/badge/platform-Linux-orange.svg)](https://github.com/SnokOS/snok-converter)
+[![Made for SnokOS](https://img.shields.io/badge/made%20for-SnokOS-purple.svg)](https://github.com/SnokOS)
 
-يمكنك تخصيص التطبيق بشكل كبير لإضافة / إزالة إعدادات التحويل المسبقة في قوائم سياق الملفات أو تعديل الإعدادات الموجودة لتغيير خيارات التحويل
-====================
+A simple, lightweight tool for converting and compressing files directly from the right-click context menu of your file manager.  
+Designed specifically for **SnokOS Linux**.
 
-طريقة التثبيت
--------------
-1. احفظ جميع الملفات في مجلد واحد:
-   config.json, snok-settings.py, snok-convert.py, install.sh
-2. افتح Terminal في هذا المجلد
-3. نفّذ:
-   sudo bash install.sh
-4. أعد تشغيل Thunar:
-   thunar -q && thunar &
-5. جرّب الإعدادات:
-   snok-settings
+[📥 Quick Install](#-quick-install) · [📖 Usage](#-usage) · [⚙️ Settings](#️-settings) · [🐛 Report a Bug](https://github.com/SnokOS/snok-converter/issues)
 
-طريقة الاستخدام
----------------
-- انقر يمين على أي ملف (صورة/فيديو/صوت/مستند/SVG)
-- اختر "Snok-Converter"
-- اختر الصيغة الهدف من القائمة
-- شاهد شريط التقدم
-- بعد الانتهاء: نافذة نتيجة + الملف الجديد بجانب الأصلي
+</div>
 
-الإعدادات
----------
-Settings Manager → Snok-Converter Settings
+---
 
-تتيح لك:
-- تفعيل/تعطيل الأداة (لتقليل استهلاك الموارد)
-- اختيار الصيغ الظاهرة لكل فئة
-- تفعيل "حذف الملف الأصلي" لكل صيغة على حدة
-- ضبط الجودة (Quality) / DPI / Bitrate / CRF
-- تحسين SVG عبر svgo
-- تحويل الصور إلى SVG متجهي (Trace)
+## ✨ Features
 
-السجلات
--------
-/tmp/snok-settings.log
-/tmp/snok-convert.log
+- 🖱️ **Full Thunar integration** — convert directly from the right-click menu
+- 🎨 **Lightweight UI** — designed for speed and simplicity
+- 📊 **Real progress bar** — shows elapsed time for each operation
+- 🎯 **Broad format support** — images, audio, video, documents, and SVG
+- ⚙️ **Highly customizable** — full control over visible formats and conversion options
+- 🗑️ **Delete original option** — individually per format
+- 🎛️ **Advanced options** — quality, DPI, Bitrate, CRF, and SVG optimization
+- 🌐 **Bilingual interface** — English and Arabic
 
-إزالة التثبيت
--------------
-sudo rm -rf /usr/share/snok-converter \
-            /usr/bin/snok-settings \
-            /usr/bin/snok-convert \
-            /usr/share/applications/snok-converter*.desktop \
-            /usr/share/icons/hicolor/*/apps/snok-converter.png
-rm -rf ~/.config/snok-converter
-# snok-converter
-Snok Converter is a very simple tool that allows you to convert and compress files using the context menu in your file manager. It is designed specifically for the system SnokOS linux
+---
+
+## 📋 Supported Formats
+
+| Category | Output Formats | Input Formats |
+|:---:|:---|:---|
+| 🎵 **Audio** | `flac`, `aac`, `ogg`, `mp3`, `wav` | `3gp`, `3gpp`, `aac`, `aiff`, `ape`, `avi`, `bik`, `cda`, `flac`, `flv`, `gif`, `m4v`, `mkv`, `mp4`, `m4a`, `m4b`, `mp3`, `mpg`, `mpeg`, `mov`, `oga`, `ogg`, `ogv`, `opus`, `rm`, `ts`, `vob`, `wav`, `webm`, `wma`, `wmv` |
+| 🎬 **Video** | `webm`, `mkv`, `mp4`, `ogv`, `avi`, `gif` | `3gp`, `3gpp`, `avi`, `bik`, `flv`, `gif`, `m4v`, `mkv`, `mp4`, `mpg`, `mpeg`, `mov`, `ogv`, `rm`, `ts`, `vob`, `webm`, `wmv` |
+| 🖼️ **Image** | `svg`, `png`, `jpg`, `ico`, `webp`, `avif` | `arw`, `avif`, `bmp`, `cr2`, `dds`, `dns`, `exr`, `heic`, `ico`, `jfif`, `jpg`, `jpeg`, `nef`, `png`, `psd`, `raf`, `svg`, `tif`, `tiff`, `tga`, `webp`, `pdf`, `doc*`, `docx*`, `odt*`, `odp*`, `ods*`, `ppt*`, `pptx*`, `xls*`, `xlsx*` |
+| 📄 **Document** | `pdf` | `doc*`, `docx*`, `odt*`, `odp*`, `ods*`, `ppt*`, `pptx*`, `xls*`, `xlsx*`, `arw`, `bmp`, `cr2`, `dds`, `dns`, `exr`, `heic`, `ico`, `jfif`, `jpg`, `jpeg`, `nef`, `png`, `psd`, `raf`, `svg`, `tif`, `tiff`, `tga`, `webp` |
+
+> 💡 You can fully customize the application: add or remove preset conversion profiles from the file context menu, or modify existing settings to change conversion options.
+
+---
+
+## 🚀 Quick Install
+
+### Option 1: One-line installer (recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SnokOS/snok-converter/main/install.sh | sudo bash
