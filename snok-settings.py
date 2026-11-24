@@ -11,24 +11,20 @@ try:
     from gi.repository import Gtk, GdkPixbuf
 except Exception as e:
     print(f"FATAL: GTK import failed: {e}", file=sys.stderr)
-    print("Install: python3-gi gir1.2-gtk-3.0", file=sys.stderr)
     sys.exit(1)
-
 
 CONFIG_PATH = os.path.expanduser("~/.config/snok-converter/config.json")
 SYSTEM_CONFIG = "/usr/share/snok-converter/config.json"
 ICON_NAME = "snok-converter"
 ICON_FALLBACK = "/usr/share/icons/hicolor/256x256/apps/snok-converter.png"
 
-
 def load_config():
     if os.path.exists(CONFIG_PATH):
         try:
             with open(CONFIG_PATH, encoding='utf-8') as f:
                 return json.load(f)
-        except Exception as e:
-            print(f"WARN: failed to read user config: {e}", file=sys.stderr)
-
+        except Exception:
+            pass
     if os.path.exists(SYSTEM_CONFIG):
         try:
             with open(SYSTEM_CONFIG, encoding='utf-8') as f:
@@ -37,17 +33,14 @@ def load_config():
             with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             return data
-        except Exception as e:
-            print(f"WARN: failed to seed from system config: {e}", file=sys.stderr)
-
+        except Exception:
+            pass
     return {"version": 2, "enabled": True, "formats": {}}
-
 
 def save_config(config):
     os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
     with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
-
 
 CATEGORY_LABELS = {
     "image":    ("Images",     "🖼️"),
@@ -57,9 +50,7 @@ CATEGORY_LABELS = {
     "document": ("Documents",  "📄"),
 }
 
-
 class SnokSettings(Gtk.Window):
-
     def __init__(self):
         super().__init__(title="Snok-Converter Settings")
         self.set_default_size(560, 680)
@@ -70,11 +61,7 @@ class SnokSettings(Gtk.Window):
         try:
             self.set_icon_name(ICON_NAME)
         except Exception:
-            if os.path.exists(ICON_FALLBACK):
-                try:
-                    self.set_icon_from_file(ICON_FALLBACK)
-                except Exception:
-                    pass
+            pass
 
         self.config = load_config()
         self.format_widgets = {}
@@ -82,7 +69,7 @@ class SnokSettings(Gtk.Window):
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         self.add(main_box)
 
-        # --- Header ---
+        # Header
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         try:
             pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(ICON_FALLBACK, 56, 56, True)
@@ -97,17 +84,13 @@ class SnokSettings(Gtk.Window):
         title_box.pack_start(title_lbl, False, False, 0)
         subtitle = Gtk.Label(label="Universal file conversion for Thunar")
         subtitle.set_xalign(0)
-        try:
-            subtitle.get_style_context().add_class("dim-label")
-        except Exception:
-            pass
         title_box.pack_start(subtitle, False, False, 0)
         header.pack_start(title_box, False, False, 0)
         main_box.pack_start(header, False, False, 0)
 
         main_box.pack_start(Gtk.Separator(), False, False, 0)
 
-        # --- Enable toggle ---
+        # Enable toggle
         toggle_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         toggle_label = Gtk.Label()
         toggle_label.set_markup("<b>Enable Snok-Converter in Thunar</b>")
@@ -120,9 +103,10 @@ class SnokSettings(Gtk.Window):
         toggle_box.pack_end(self.enable_switch, False, False, 0)
         main_box.pack_start(toggle_box, False, False, 0)
 
-        # --- Notebook ---
+        # Notebook (Tabs) - FIXED: Explicitly show tabs
         self.notebook = Gtk.Notebook()
         self.notebook.set_scrollable(True)
+        self.notebook.set_show_tabs(True) 
         main_box.pack_start(self.notebook, True, True, 0)
 
         for cat in ("image", "svg", "audio", "video", "document"):
@@ -134,8 +118,9 @@ class SnokSettings(Gtk.Window):
             tab.pack_start(Gtk.Label(label=emoji), False, False, 0)
             tab.pack_start(Gtk.Label(label=label), False, False, 0)
             self.notebook.append_page(page, tab)
+            tab.show_all() # FIXED: Ensure tab contents are visible
 
-        # --- Bottom buttons ---
+        # Buttons
         btn_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         btn_bar.set_margin_top(4)
 
@@ -148,10 +133,7 @@ class SnokSettings(Gtk.Window):
         btn_bar.pack_start(reset_btn, False, False, 0)
 
         save_btn = Gtk.Button(label="💾 Save")
-        try:
-            save_btn.get_style_context().add_class("suggested-action")
-        except Exception:
-            pass
+        save_btn.get_style_context().add_class("suggested-action")
         save_btn.connect("clicked", self.on_save)
         btn_bar.pack_end(save_btn, False, False, 0)
 
@@ -162,11 +144,9 @@ class SnokSettings(Gtk.Window):
         main_box.pack_start(Gtk.Separator(), False, False, 0)
         main_box.pack_start(btn_bar, False, False, 0)
 
-    # ---------- Build category page ----------
     def build_category_page(self, category):
         scroller = Gtk.ScrolledWindow()
         scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         outer.set_border_width(8)
         scroller.add(outer)
@@ -176,7 +156,6 @@ class SnokSettings(Gtk.Window):
             outer.pack_start(Gtk.Label(label="(no formats configured)"), False, False, 0)
             return scroller
 
-        # Column headers
         head = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         head.set_margin_bottom(4)
         l1 = Gtk.Label(); l1.set_markup("<b>Format</b>"); l1.set_xalign(0); l1.set_size_request(90, -1)
@@ -202,7 +181,6 @@ class SnokSettings(Gtk.Window):
 
             show_check = Gtk.CheckButton()
             show_check.set_active(opts.get("enabled", True))
-            show_check.set_tooltip_text("Show this format in the right-click menu")
             row.pack_start(show_check, False, False, 0)
 
             del_check = Gtk.CheckButton()
@@ -212,23 +190,22 @@ class SnokSettings(Gtk.Window):
             extras = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
             widgets = {"enabled": show_check, "delete_original": del_check, "extras": {}}
 
-            if fmt in ("jpg", "jpeg", "webp", "avif", "heic", "jfif") or (
-                    category == "image" and "quality" in opts):
-                lbl = Gtk.Label(label="Q:"); extras.pack_start(lbl, False, False, 0)
+            if fmt in ("jpg", "jpeg", "webp", "avif", "heic", "jfif") or (category == "image" and "quality" in opts):
+                extras.pack_start(Gtk.Label(label="Q:"), False, False, 0)
                 spin = Gtk.SpinButton.new_with_range(1, 100, 1)
                 spin.set_value(int(opts.get("quality", 95)))
                 extras.pack_start(spin, False, False, 0)
                 widgets["extras"]["quality"] = spin
 
             if "dpi" in opts:
-                lbl = Gtk.Label(label="DPI:"); extras.pack_start(lbl, False, False, 0)
+                extras.pack_start(Gtk.Label(label="DPI:"), False, False, 0)
                 spin = Gtk.SpinButton.new_with_range(72, 1200, 1)
                 spin.set_value(int(opts.get("dpi", 300)))
                 extras.pack_start(spin, False, False, 0)
                 widgets["extras"]["dpi"] = spin
 
             if fmt in ("jpg", "jpeg") and "background" in opts:
-                lbl = Gtk.Label(label="BG:"); extras.pack_start(lbl, False, False, 0)
+                extras.pack_start(Gtk.Label(label="BG:"), False, False, 0)
                 entry = Gtk.Entry()
                 entry.set_text(opts.get("background", "#FFFFFF"))
                 entry.set_width_chars(9)
@@ -236,18 +213,16 @@ class SnokSettings(Gtk.Window):
                 widgets["extras"]["background"] = entry
 
             if "bitrate" in opts:
-                lbl = Gtk.Label(label="kbps:"); extras.pack_start(lbl, False, False, 0)
+                extras.pack_start(Gtk.Label(label="kbps:"), False, False, 0)
                 spin = Gtk.SpinButton.new_with_range(32, 512, 32)
                 b = opts.get("bitrate", "256k")
-                try:
-                    spin.set_value(int(b.rstrip("kK")))
-                except Exception:
-                    spin.set_value(256)
+                try: spin.set_value(int(b.rstrip("kK")))
+                except: spin.set_value(256)
                 extras.pack_start(spin, False, False, 0)
                 widgets["extras"]["bitrate"] = spin
 
             if "crf" in opts:
-                lbl = Gtk.Label(label="CRF:"); extras.pack_start(lbl, False, False, 0)
+                extras.pack_start(Gtk.Label(label="CRF:"), False, False, 0)
                 spin = Gtk.SpinButton.new_with_range(0, 51, 1)
                 spin.set_value(int(opts.get("crf", 20)))
                 extras.pack_start(spin, False, False, 0)
@@ -267,30 +242,24 @@ class SnokSettings(Gtk.Window):
 
             row.pack_start(extras, True, True, 0)
             outer.pack_start(row, False, False, 0)
-
             self.format_widgets[(category, fmt)] = widgets
 
         return scroller
 
-    # ---------- Handlers ----------
     def on_enable_toggled(self, _switch, state):
         self.config["enabled"] = bool(state)
         return False
 
     def _collect_row(self, category, fmt):
         widgets = self.format_widgets.get((category, fmt))
-        if not widgets:
-            return
+        if not widgets: return
         opts = self.config["formats"][category][fmt]
         opts["enabled"] = widgets["enabled"].get_active()
         opts["delete_original"] = widgets["delete_original"].get_active()
         for key, w in widgets["extras"].items():
             if isinstance(w, Gtk.SpinButton):
                 val = int(w.get_value())
-                if key == "bitrate":
-                    opts[key] = f"{val}k"
-                else:
-                    opts[key] = val
+                opts[key] = f"{val}k" if key == "bitrate" else val
             elif isinstance(w, Gtk.CheckButton):
                 opts[key] = w.get_active()
             elif isinstance(w, Gtk.Entry):
@@ -307,61 +276,39 @@ class SnokSettings(Gtk.Window):
             self._error(f"Failed to save settings:\n{e}")
 
     def on_reset(self, *_):
-        dlg = Gtk.MessageDialog(
-            transient_for=self, flags=0,
-            message_type=Gtk.MessageType.QUESTION,
-            buttons=Gtk.ButtonsType.YES_NO,
-            text="Reset all settings to defaults?"
-        )
+        dlg = Gtk.MessageDialog(transient_for=self, flags=0, message_type=Gtk.MessageType.QUESTION, buttons=Gtk.ButtonsType.YES_NO, text="Reset all settings to defaults?")
         resp = dlg.run(); dlg.destroy()
-        if resp != Gtk.ResponseType.YES:
-            return
-        try:
-            if os.path.exists(SYSTEM_CONFIG):
-                with open(SYSTEM_CONFIG, encoding='utf-8') as f:
-                    defaults = json.load(f)
-                save_config(defaults)
-            self._info("Settings reset. Restart the app to see changes.")
-        except Exception as e:
-            self._error(f"Reset failed:\n{e}")
+        if resp == Gtk.ResponseType.YES:
+            try:
+                if os.path.exists(SYSTEM_CONFIG):
+                    with open(SYSTEM_CONFIG, encoding='utf-8') as f: defaults = json.load(f)
+                    save_config(defaults)
+                self._info("Settings reset. Restart the app to see changes.")
+            except Exception as e: self._error(f"Reset failed:\n{e}")
 
     def on_about(self, *_):
         dlg = Gtk.AboutDialog(transient_for=self, modal=True)
         dlg.set_program_name("Snok-Converter")
         dlg.set_version("2.0")
-        dlg.set_comments("Universal file converter for Thunar\n"
-                         "Images · SVG · Audio · Video · Documents")
+        dlg.set_comments("Universal file converter for Thunar")
         dlg.set_website("https://github.com/SnokOS/snok-converter")
-        try:
-            pixbuf = GdkPixbuf.Pixbuf.new_from_file(ICON_FALLBACK)
-            dlg.set_logo(pixbuf)
-        except Exception:
-            pass
         dlg.run(); dlg.destroy()
 
     def _info(self, msg):
-        d = Gtk.MessageDialog(transient_for=self, flags=0,
-                              message_type=Gtk.MessageType.INFO,
-                              buttons=Gtk.ButtonsType.OK, text=msg)
+        d = Gtk.MessageDialog(transient_for=self, flags=0, message_type=Gtk.MessageType.INFO, buttons=Gtk.ButtonsType.OK, text=msg)
         d.run(); d.destroy()
 
     def _error(self, msg):
-        d = Gtk.MessageDialog(transient_for=self, flags=0,
-                              message_type=Gtk.MessageType.ERROR,
-                              buttons=Gtk.ButtonsType.OK, text=msg)
+        d = Gtk.MessageDialog(transient_for=self, flags=0, message_type=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.OK, text=msg)
         d.run(); d.destroy()
-
 
 def main():
     if not os.path.exists(CONFIG_PATH) and os.path.exists(SYSTEM_CONFIG):
-        try:
-            load_config()
-        except Exception:
-            pass
+        try: load_config()
+        except: pass
     win = SnokSettings()
     win.show_all()
     Gtk.main()
-
 
 if __name__ == "__main__":
     main()

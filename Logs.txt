@@ -1,0 +1,2 @@
+/tmp/snok-settings.log    ← Settings GUI log
+/tmp/snok-convert.log     ← Conversion engine log
